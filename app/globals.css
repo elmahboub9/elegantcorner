@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-rgb: 255, 255, 255;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+}
+
+@layer base {
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-playfair);
+  }
+  body {
+    font-family: var(--font-inter);
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-black text-white px-6 py-3 rounded-none hover:bg-gray-800 transition-colors duration-200;
+  }
+  
+  .btn-secondary {
+    @apply border-2 border-black text-black px-6 py-3 rounded-none hover:bg-black hover:text-white transition-colors duration-200;
+  }
+
+  .container-custom {
+    @apply container mx-auto px-4 sm:px-6 lg:px-8;
+  }
+}
+
+/* Custom color variables */
+:root {
+  --color-sand: #E6D5C3;
+  --color-terracotta: #C66B3D;
+  --color-cream: #F5F5DC;
+} 
