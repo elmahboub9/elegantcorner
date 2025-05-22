@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect } from 'react';
 import { Dialog } from '@headlessui/react';
 import { PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
@@ -25,6 +25,8 @@ export default function AdminPanel() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     price: '',
@@ -34,6 +36,30 @@ export default function AdminPanel() {
     images: [] as string[],
     description: ''
   });
+
+  // Fetch products when component mounts
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await fetch('/api/products');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch products');
+      }
+      const data = await response.json();
+      setProducts(data);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load products');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -64,44 +90,88 @@ export default function AdminPanel() {
     }));
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    const productData = {
-      ...formData,
-      price: parseFloat(formData.price),
-      images: formData.images.length ? formData.images : ['/placeholder-image.jpg']
-    };
+    
+    try {
+      setIsLoading(true);
+      setError(null);
 
-    if (selectedProduct) {
-      handleEditProduct({ ...productData, id: selectedProduct.id });
-    } else {
-      handleAddProduct(productData);
+      // Validate form data
+      if (!formData.name || !formData.price || !formData.collection) {
+        throw new Error('Please fill in all required fields');
+      }
+
+      if (formData.sizes.length === 0) {
+        throw new Error('Please select at least one size');
+      }
+
+      if (formData.colors.length === 0) {
+        throw new Error('Please select at least one color');
+      }
+
+      const productData = {
+        ...formData,
+        price: parseFloat(formData.price),
+        images: formData.images.length ? formData.images : ['/placeholder-image.jpg']
+      };
+
+      const url = '/api/products';
+      const method = selectedProduct ? 'PUT' : 'POST';
+      const body = selectedProduct ? { ...productData, id: selectedProduct.id } : productData;
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save product');
+      }
+
+      // Refresh products list
+      await fetchProducts();
+
+      // Reset form and close modal
+      resetForm();
+      setIsAddModalOpen(false);
+      setIsEditModalOpen(false);
+      setSelectedProduct(null);
+
+      alert(`Product ${selectedProduct ? 'updated' : 'added'} successfully!`);
+    } catch (error) {
+      console.error('Error saving product:', error);
+      setError(error instanceof Error ? error.message : 'Failed to save product');
+    } finally {
+      setIsLoading(false);
     }
-
-    resetForm();
   };
 
-  const handleAddProduct = (product: Omit<Product, 'id'>) => {
-    const newProduct = {
-      ...product,
-      id: products.length + 1,
-    };
-    setProducts([...products, newProduct]);
-    setIsAddModalOpen(false);
-  };
+  const handleDeleteProduct = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this product?')) return;
 
-  const handleEditProduct = (product: Product) => {
-    const updatedProducts = products.map((p) =>
-      p.id === product.id ? product : p
-    );
-    setProducts(updatedProducts);
-    setIsEditModalOpen(false);
-    setSelectedProduct(null);
-  };
+    try {
+      const response = await fetch('/api/products', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id }),
+      });
 
-  const handleDeleteProduct = (id: number) => {
-    const updatedProducts = products.filter((p) => p.id !== id);
-    setProducts(updatedProducts);
+      if (!response.ok) throw new Error('Failed to delete product');
+
+      // Refresh products list
+      await fetchProducts();
+      alert('Product deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      alert('Failed to delete product. Please try again.');
+    }
   };
 
   return (
@@ -113,90 +183,113 @@ export default function AdminPanel() {
             <button
               onClick={() => {
                 resetForm();
+                setError(null);
                 setIsAddModalOpen(true);
               }}
               className="btn-primary flex items-center"
+              disabled={isLoading}
             >
               <PlusIcon className="h-5 w-5 mr-2" />
               Add New Product
             </button>
           </div>
 
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-600 rounded-md">
+              {error}
+            </div>
+          )}
+
+          {/* Loading State */}
+          {isLoading && (
+            <div className="text-center py-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+              <p className="mt-2 text-gray-600">Loading...</p>
+            </div>
+          )}
+
           {/* Product Table */}
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead>
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Image
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Price
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Collection
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {products.map((product) => (
-                  <tr key={product.id}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="relative h-16 w-16">
-                        <Image
-                          src={product.images[0]}
-                          alt={product.name}
-                          fill
-                          className="object-cover rounded"
-                        />
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">{product.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      €{product.price.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {product.collection}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => {
-                            setSelectedProduct(product);
-                            setFormData({
-                              name: product.name,
-                              price: product.price.toString(),
-                              collection: product.collection,
-                              sizes: product.sizes,
-                              colors: product.colors,
-                              images: product.images,
-                              description: product.description
-                            });
-                            setIsEditModalOpen(true);
-                          }}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          <PencilIcon className="h-5 w-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteProduct(product.id)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          <TrashIcon className="h-5 w-5" />
-                        </button>
-                      </div>
-                    </td>
+          {!isLoading && products.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              No products found. Add your first product using the button above.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead>
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Image
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Price
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Collection
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {products.map((product) => (
+                    <tr key={product.id}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="relative h-16 w-16">
+                          <Image
+                            src={product.images[0]}
+                            alt={product.name}
+                            fill
+                            className="object-cover rounded"
+                          />
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">{product.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        €{product.price.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {product.collection}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => {
+                              setSelectedProduct(product);
+                              setFormData({
+                                name: product.name,
+                                price: product.price.toString(),
+                                collection: product.collection,
+                                sizes: product.sizes,
+                                colors: product.colors,
+                                images: product.images,
+                                description: product.description
+                              });
+                              setIsEditModalOpen(true);
+                            }}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            <PencilIcon className="h-5 w-5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProduct(product.id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 
@@ -204,10 +297,13 @@ export default function AdminPanel() {
       <Dialog
         open={isAddModalOpen || isEditModalOpen}
         onClose={() => {
-          setIsAddModalOpen(false);
-          setIsEditModalOpen(false);
-          setSelectedProduct(null);
-          resetForm();
+          if (!isLoading) {
+            setIsAddModalOpen(false);
+            setIsEditModalOpen(false);
+            setSelectedProduct(null);
+            setError(null);
+            resetForm();
+          }
         }}
         className="relative z-50"
       >
@@ -217,6 +313,14 @@ export default function AdminPanel() {
             <Dialog.Title className="text-lg font-playfair mb-4">
               {isAddModalOpen ? 'Add New Product' : 'Edit Product'}
             </Dialog.Title>
+
+            {/* Form Error Message */}
+            {error && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-600 rounded-md">
+                {error}
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Name */}
               <div>
@@ -345,17 +449,32 @@ export default function AdminPanel() {
                 <button
                   type="button"
                   onClick={() => {
-                    setIsAddModalOpen(false);
-                    setIsEditModalOpen(false);
-                    setSelectedProduct(null);
-                    resetForm();
+                    if (!isLoading) {
+                      setIsAddModalOpen(false);
+                      setIsEditModalOpen(false);
+                      setSelectedProduct(null);
+                      setError(null);
+                      resetForm();
+                    }
                   }}
                   className="btn-secondary"
+                  disabled={isLoading}
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn-primary">
-                  {isAddModalOpen ? 'Add Product' : 'Save Changes'}
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <span className="flex items-center">
+                      <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></span>
+                      Saving...
+                    </span>
+                  ) : (
+                    isAddModalOpen ? 'Add Product' : 'Save Changes'
+                  )}
                 </button>
               </div>
             </form>
