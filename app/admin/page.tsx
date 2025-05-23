@@ -16,7 +16,13 @@ interface Product {
   description: string;
 }
 
-const COLLECTIONS = ['Summer Collection', 'Evening Wear', 'Casual Chic'];
+const COLLECTIONS = [
+  'New Arrivals',
+  'Winter Collection',
+  'Summer Essentials',
+  'Sport Collection',
+  'Femme'
+];
 const DEFAULT_SIZES = ['XS', 'S', 'M', 'L', 'XL'];
 const DEFAULT_COLORS = ['White', 'Black', 'Navy', 'Beige', 'Red'];
 
