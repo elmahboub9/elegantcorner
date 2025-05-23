@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import Navbar from '../components/Navbar';
@@ -59,23 +58,6 @@ const collections: Collection[] = [
 ];
 
 export default function CollectionsPage() {
-  const [products, setProducts] = useState([]);
-
-  useEffect(() => {
-    fetchProducts();
-  }, []);
-
-  const fetchProducts = async () => {
-    try {
-      const response = await fetch('/api/products');
-      if (!response.ok) throw new Error('Failed to fetch products');
-      const data = await response.json();
-      setProducts(data);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-    }
-  };
-
   return (
     <main className="min-h-screen bg-white">
       <Navbar />
